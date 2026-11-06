@@ -1,0 +1,7 @@
+name: meter_cdc
+storage: file:///data/pipelines/meter_cdc
+configuration:
+  spark.sql.shuffle.partitions: "4"
+libraries:
+  - glob:
+      include: transformations/**

@@ -1,0 +1,129 @@
+name: spark-lab
+
+x-spark: &spark
+  image: spark-lab:4.3.0
+  build: ./docker/spark
+  environment:
+    KAFKA_BOOTSTRAP: kafka:9092
+    PG_HOST: postgres
+    PG_DB: energy
+    PG_USER: lab
+    PG_PASSWORD: lab
+    BATCH_INTERVAL_SEC: ${BATCH_INTERVAL_SEC:-60}
+  volumes:
+    - ./jobs:/work/jobs
+    - ./lib:/work/lib
+    - ./pipelines:/work/pipelines
+    - ./notebooks:/work/notebooks
+    - spark-data:/data
+  depends_on:
+    kafka:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  kafka:
+    image: apache/kafka:4.1.0
+    hostname: kafka
+    ports:
+      - "${KAFKA_PORT:-9094}:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 2
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: spark-lab-kraft-cluster1
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  postgres:
+    image: postgres:17
+    ports:
+      - "${PG_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: energy
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d energy"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  generator:
+    build: ./generator
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      PRICE_SOURCE: ${PRICE_SOURCE:-aemo}
+      METERS: ${METERS:-40}
+      READ_INTERVAL_SEC: ${READ_INTERVAL_SEC:-2}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  stream:
+    <<: *spark
+    command: ["spark-submit", "--driver-memory", "1g", "/work/jobs/stream_to_postgres.py"]
+    restart: unless-stopped
+
+  rtm:
+    <<: *spark
+    command: ["spark-submit", "--driver-memory", "1g", "/work/jobs/rtm_alerts.py"]
+    restart: unless-stopped
+
+  batch:
+    <<: *spark
+    command: ["bash", "/work/jobs/batch_loop.sh"]
+    restart: unless-stopped
+
+  jupyter:
+    <<: *spark
+    user: root
+    ports:
+      - "${JUPYTER_PORT:-8888}:8888"
+      - "${SPARK_UI_PORT:-4040}:4040"
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --port=8888
+      - --no-browser
+      - --allow-root
+      - --ServerApp.token=
+      - --ServerApp.password=
+      - --ServerApp.root_dir=/work
+
+  ui:
+    build: ./ui
+    ports:
+      - "${UI_PORT:-8501}:8501"
+    environment:
+      PG_DSN: postgresql://lab:lab@postgres:5432/energy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+  pg-data:
+  spark-data:
