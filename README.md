@@ -54,7 +54,7 @@ I built it to catch up on the new Spark features quickly, and I'm sharing it so 
 ### Run
 
 ```bash
-git clone <this-repo-url> spark-lab
+git clone https://github.com/NaminduNadeeshan/spark-4.3-feature-lab.git spark-lab
 cd spark-lab
 docker compose up -d --build
 ```
