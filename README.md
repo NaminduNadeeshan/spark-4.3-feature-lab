@@ -39,6 +39,7 @@ I built it to catch up on the new Spark features quickly, and I'm sharing it so 
 13. [Troubleshooting](#troubleshooting)
 14. [Versions](#versions)
 15. [References](#references)
+16. [License](#license)
 
 ---
 
@@ -522,3 +523,12 @@ These are real behaviours of open-source Spark 4.3.0 found while building this l
 - [JSON_TABLE syntax](https://spark.apache.org/docs/4.3.0/sql-ref-syntax-qry-select-json-table.html)
 - [Declarative Pipelines programming guide](https://spark.apache.org/docs/4.3.0/declarative-pipelines-programming-guide.html)
 - [AEMO NEMWeb current reports](https://nemweb.com.au/Reports/Current/)
+
+---
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE).
+
+Third-party software (Apache Spark, Apache Iceberg, Apache Kafka, PostgreSQL, Streamlit and others) is downloaded at build time under its own license and is not redistributed here.
+Price data is fetched live from AEMO's NEMWeb and is subject to AEMO's copyright terms.
